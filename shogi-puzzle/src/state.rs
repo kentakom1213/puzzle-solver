@@ -5,6 +5,9 @@ use colored::Colorize;
 /// 盤面の列数
 const COLS: usize = 4;
 
+/// 盤面の行数
+const ROWS: usize = 5;
+
 /// 盤面の左端
 const LEFT_EDGE: u32 = 0b_0001_0001_0001_0001_0001;
 
@@ -17,15 +20,24 @@ const TOP_EDGE: u32 = 0b_0000_0000_0000_0000_1111;
 /// 盤面の下端
 const BOTTOM_EDGE: u32 = 0b_1111_0000_0000_0000_0000;
 
+/// 1x1のピースの番号
+const P1X1: usize = 0;
+
+/// 2x1のピースの番号
+const P2X1: usize = 1;
+
+/// 1x2のピースの番号
+const P1X2: usize = 2;
+
+/// 2x2のピースの番号
+const P2X2: usize = 3;
+
 /// 盤面の状態を保存する
 ///
-/// - `Field[0]` : 1x1の駒の位置
-/// - `Field[1]` : 2x1 (縦長) の駒の位置 (1)
-/// - `Field[2]` : 2x1 (縦長) の駒の位置 (2)
-/// - `Field[3]` : 2x1 (縦長) の駒の位置 (3)
-/// - `Field[4]` : 2x1 (縦長) の駒の位置 (4)
-/// - `Field[5]` : 1x2 (横長) の駒の位置
-/// - `Field[6]` : 2x2の駒の位置
+/// - `Field[0]` : 1x1の駒の位置（4つ分）
+/// - `Field[1]` : 2x1 (縦長) の駒の位置（4つ分）
+/// - `Field[2]` : 1x2 (横長) の駒の位置
+/// - `Field[3]` : 2x2の駒の位置
 ///
 /// インデックスは以下の通り（各値のbitに対応）
 ///
@@ -37,7 +49,7 @@ const BOTTOM_EDGE: u32 = 0b_1111_0000_0000_0000_0000;
 /// 16 17 18 19
 /// ```
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Field(pub [u32; 7]);
+pub struct Field(pub [u32; 4]);
 
 impl Field {
     /// 初期盤面を生成する
@@ -53,10 +65,7 @@ impl Field {
     pub fn get_initial_state() -> Self {
         Self([
             0b_0000_0000_0000_0110_1001,
-            0b_0000_0000_0001_0001_0000,
-            0b_0000_0000_1000_1000_0000,
-            0b_0001_0001_0000_0000_0000,
-            0b_1000_1000_0000_0000_0000,
+            0b_1001_1001_1001_1001_0000,
             0b_0000_0000_0110_0000_0000,
             0b_0110_0110_0000_0000_0000,
         ])
@@ -66,46 +75,89 @@ impl Field {
     pub fn next_states<'a>(&'a self) -> impl Iterator<Item = Self> + 'a {
         // 1x1の駒
         (0..20)
-            .filter(move |&i| self.0[0] >> i & 1 == 1)
+            .filter(move |&i| self.0[P1X1] >> i & 1 == 1)
             .flat_map(|i| {
                 let mut next_states = Vec::with_capacity(4);
 
                 // 右に移動
                 if RIGHT_EDGE >> i & 1 == 0 {
                     let mut next = self.clone();
-                    next.0[0] ^= 1 << i;
-                    next.0[0] |= 1 << (i + 1);
+                    next.0[P1X1] ^= 1 << i;
+                    next.0[P1X1] |= 1 << (i + 1);
                     next_states.push(next);
                 }
 
                 // 上に移動
                 if TOP_EDGE >> i & 1 == 0 {
                     let mut next = self.clone();
-                    next.0[0] ^= 1 << i;
-                    next.0[0] |= 1 << (i - COLS);
+                    next.0[P1X1] ^= 1 << i;
+                    next.0[P1X1] |= 1 << (i - COLS);
                     next_states.push(next);
                 }
 
                 // 左に移動
                 if LEFT_EDGE >> i & 1 == 0 {
                     let mut next = self.clone();
-                    next.0[0] ^= 1 << i;
-                    next.0[0] |= 1 << (i - 1);
+                    next.0[P1X1] ^= 1 << i;
+                    next.0[P1X1] |= 1 << (i - 1);
                     next_states.push(next);
                 }
 
                 // 下に移動
                 if BOTTOM_EDGE >> i & 1 == 0 {
                     let mut next = self.clone();
-                    next.0[0] ^= 1 << i;
-                    next.0[0] |= 1 << (i + COLS);
+                    next.0[P1X1] ^= 1 << i;
+                    next.0[P1X1] |= 1 << (i + COLS);
                     next_states.push(next);
                 }
 
                 next_states
             })
+            // 2x1の駒
+            .chain({
+                // 4つの駒に分解
+                let peaces = Self::decompose_2x1(self.0[P2X1]);
+
+                (0..4).flat_map(move |j| {
+                    let mut next_states = Vec::with_capacity(4);
+
+                    // 右に移動
+                    if peaces[j] & RIGHT_EDGE == 0 {
+                        let mut next = self.clone();
+                        next.0[P2X1] ^= peaces[j];
+                        next.0[P2X1] ^= peaces[j] << 1;
+                        next_states.push(next);
+                    }
+
+                    // 上に移動
+                    if peaces[j] & TOP_EDGE == 0 {
+                        let mut next = self.clone();
+                        next.0[P2X1] ^= peaces[j];
+                        next.0[P2X1] ^= peaces[j] >> COLS;
+                        next_states.push(next);
+                    }
+
+                    // 左に移動
+                    if peaces[j] & LEFT_EDGE == 0 {
+                        let mut next = self.clone();
+                        next.0[P2X1] ^= peaces[j];
+                        next.0[P2X1] ^= peaces[j] >> 1;
+                        next_states.push(next);
+                    }
+
+                    // 下に移動
+                    if peaces[j] & BOTTOM_EDGE == 0 {
+                        let mut next = self.clone();
+                        next.0[P2X1] ^= peaces[j];
+                        next.0[P2X1] ^= peaces[j] << COLS;
+                        next_states.push(next);
+                    }
+
+                    next_states
+                })
+            })
             // 他の駒
-            .chain((1..7).flat_map(|i| {
+            .chain((2..4).flat_map(|i| {
                 let mut next_states = Vec::with_capacity(4);
 
                 // 右に移動
@@ -140,33 +192,40 @@ impl Field {
             }))
             .filter(|state| {
                 // 他の駒と重なっていないかチェック
-                (0..7).fold(0, |mask, i| mask | state.0[i]).count_ones() == 18
+                (0..4).fold(0, |mask, i| mask | state.0[i]).count_ones() == 18
             })
     }
 
     /// 終了状態かどうかを判定する
     pub fn is_goal(&self) -> bool {
-        self.0[6] == 0b_0000_0000_0000_0110_0110
+        self.0[P2X2] == 0b_0000_0000_0000_0110_0110
     }
 
     /// 整形して表示する
     pub fn prerry_print(&self) {
         let mut field: [[u8; 4]; 5] = [[0; 4]; 5];
+        let &Self([p1x1, p2x1, p1x2, p2x2]) = self;
 
-        for d in 0..7 {
-            for i in 0..20 {
-                let (r, c) = (i / 4, i % 4);
-                if self.0[d] >> i & 1 == 1 {
-                    field[r][c] = d as u8 + 1;
+        // 4つの駒に分解
+        let [p2x1_1, p2x1_2, p2x1_3, p2x1_4] = Self::decompose_2x1(p2x1);
+
+        for (i, x) in [p1x1, p2x1_1, p2x1_2, p2x1_3, p2x1_4, p1x2, p2x2]
+            .into_iter()
+            .enumerate()
+        {
+            for j in 0..ROWS * COLS {
+                let (r, c) = (j / COLS, j % COLS);
+                if x >> j & 1 == 1 {
+                    field[r][c] = i as u8 + 1;
                 }
             }
         }
 
         let mut res = "┏━━────━━┓\n".to_string();
 
-        for i in 0..5 {
+        for i in 0..ROWS {
             res += "┃";
-            for j in 0..4 {
+            for j in 0..COLS {
                 res += &match field[i][j] {
                     0 => "  ".to_string(),
                     1 => "▓▓".green().to_string(),
@@ -185,6 +244,25 @@ impl Field {
         res += "┗━━━━━━━━┛\n";
 
         print!("{}", res);
+    }
+
+    /// 1つの変数にまとめられている2x1の駒を分解する
+    fn decompose_2x1(mut peace2x1: u32) -> [u32; 4] {
+        let mut idx = 0;
+        let mut peaces = [0; 4];
+
+        for j in 0..16 {
+            if peace2x1 >> j & 1 == 1 {
+                peaces[idx] |= 1 << j;
+                peaces[idx] |= 1 << (j + COLS);
+                peace2x1 ^= 1 << j;
+                peace2x1 ^= 1 << (j + COLS);
+                idx += 1;
+            }
+        }
+
+        assert_eq!(idx, 4);
+        peaces
     }
 }
 
@@ -247,10 +325,7 @@ mod test {
 
         let field = Field([
             0b_1001_0110_0000_0000_0000,
-            0b_0000_0000_0001_0001_0000,
-            0b_0000_0000_1000_1000_0000,
-            0b_0001_0001_0000_0000_0000,
-            0b_1000_1000_0000_0000_0000,
+            0b_1001_1001_1001_1001_0000,
             0b_0110_0000_0000_0000_0000,
             0b_0000_0000_0000_0110_0110,
         ]);

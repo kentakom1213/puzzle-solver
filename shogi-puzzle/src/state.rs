@@ -34,10 +34,10 @@ const P2X2: usize = 3;
 
 /// 盤面の状態を保存する
 ///
-/// - `Field[0]` : 1x1の駒の位置（4つ分）
-/// - `Field[1]` : 2x1 (縦長) の駒の位置（4つ分）
-/// - `Field[2]` : 1x2 (横長) の駒の位置
-/// - `Field[3]` : 2x2の駒の位置
+/// - `State[0]` : 1x1の駒の位置（4つ分）
+/// - `State[1]` : 2x1 (縦長) の駒の位置（4つ分）
+/// - `State[2]` : 1x2 (横長) の駒の位置
+/// - `State[3]` : 2x2の駒の位置
 ///
 /// インデックスは以下の通り（各値のbitに対応）
 ///
@@ -48,10 +48,10 @@ const P2X2: usize = 3;
 /// 12 13 14 15
 /// 16 17 18 19
 /// ```
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Field(pub [u32; 4]);
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub struct State(pub [u32; 4]);
 
-impl Field {
+impl State {
     /// 初期盤面を生成する
     ///
     /// ```text
@@ -228,13 +228,13 @@ impl Field {
             for j in 0..COLS {
                 res += &match field[i][j] {
                     0 => "  ".to_string(),
-                    1 => "▓▓".green().to_string(),
-                    2 => "▓▓".cyan().to_string(),
-                    3 => "▓▓".blue().to_string(),
-                    4 => "▓▓".white().to_string(),
-                    5 => "▓▓".purple().to_string(),
-                    6 => "▓▓".yellow().to_string(),
-                    7 => "▓▓".red().to_string(),
+                    1 => "██".green().to_string(),
+                    2 => "██".cyan().to_string(),
+                    3 => "██".blue().to_string(),
+                    4 => "██".white().to_string(),
+                    5 => "██".purple().to_string(),
+                    6 => "██".yellow().to_string(),
+                    7 => "██".red().to_string(),
                     _ => unreachable!(),
                 };
             }
@@ -272,13 +272,13 @@ mod test {
 
     #[test]
     fn test_pretty_print() {
-        let field = Field::get_initial_state();
+        let field = State::get_initial_state();
         field.prerry_print();
     }
 
     #[test]
     fn test_next_states() {
-        let field = Field::get_initial_state();
+        let field = State::get_initial_state();
         println!("Initial State");
         field.prerry_print();
 
@@ -319,11 +319,11 @@ mod test {
 
     #[test]
     fn test_is_goal() {
-        let field = Field::get_initial_state();
+        let field = State::get_initial_state();
         field.prerry_print();
         assert!(!field.is_goal());
 
-        let field = Field([
+        let field = State([
             0b_1001_0110_0000_0000_0000,
             0b_1001_1001_1001_1001_0000,
             0b_0110_0000_0000_0000_0000,

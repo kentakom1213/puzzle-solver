@@ -5,9 +5,6 @@ use colored::Colorize;
 /// 盤面の列数
 const COLS: usize = 4;
 
-/// ピースの数
-const PIECES: usize = 10;
-
 /// 盤面の左端
 const LEFT_EDGE: u32 = 0b_0001_0001_0001_0001_0001;
 
@@ -40,25 +37,22 @@ const BOTTOM_EDGE: u32 = 0b_1111_0000_0000_0000_0000;
 /// 16 17 18 19
 /// ```
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Field(pub [u32; 10]);
+pub struct Field(pub [u32; 7]);
 
 impl Field {
     /// 初期盤面を生成する
     ///
     /// ```text
-    /// 0 _ _ 1
-    /// 4 2 3 5
-    /// 4 8 8 5
-    /// 6 9 9 7
-    /// 6 9 9 7
+    /// 0 _ _ 0
+    /// 1 0 0 2
+    /// 1 5 5 2
+    /// 3 6 6 4
+    /// 3 6 6 4
     /// ```
     #[inline]
     pub fn get_initial_state() -> Self {
         Self([
-            0b_0000_0000_0000_0000_0001,
-            0b_0000_0000_0000_0000_1000,
-            0b_0000_0000_0000_0010_0000,
-            0b_0000_0000_0000_0100_0000,
+            0b_0000_0000_0000_0110_1001,
             0b_0000_0000_0001_0001_0000,
             0b_0000_0000_1000_1000_0000,
             0b_0001_0001_0000_0000_0000,
@@ -70,8 +64,48 @@ impl Field {
 
     /// 遷移可能な盤面を列挙する
     pub fn next_states<'a>(&'a self) -> impl Iterator<Item = Self> + 'a {
-        (0..PIECES)
+        // 1x1の駒
+        (0..20)
+            .filter(move |&i| self.0[0] >> i & 1 == 1)
             .flat_map(|i| {
+                let mut next_states = Vec::with_capacity(4);
+
+                // 右に移動
+                if RIGHT_EDGE >> i & 1 == 0 {
+                    let mut next = self.clone();
+                    next.0[0] ^= 1 << i;
+                    next.0[0] |= 1 << (i + 1);
+                    next_states.push(next);
+                }
+
+                // 上に移動
+                if TOP_EDGE >> i & 1 == 0 {
+                    let mut next = self.clone();
+                    next.0[0] ^= 1 << i;
+                    next.0[0] |= 1 << (i - COLS);
+                    next_states.push(next);
+                }
+
+                // 左に移動
+                if LEFT_EDGE >> i & 1 == 0 {
+                    let mut next = self.clone();
+                    next.0[0] ^= 1 << i;
+                    next.0[0] |= 1 << (i - 1);
+                    next_states.push(next);
+                }
+
+                // 下に移動
+                if BOTTOM_EDGE >> i & 1 == 0 {
+                    let mut next = self.clone();
+                    next.0[0] ^= 1 << i;
+                    next.0[0] |= 1 << (i + COLS);
+                    next_states.push(next);
+                }
+
+                next_states
+            })
+            // 他の駒
+            .chain((1..7).flat_map(|i| {
                 let mut next_states = Vec::with_capacity(4);
 
                 // 右に移動
@@ -103,26 +137,23 @@ impl Field {
                 }
 
                 next_states
-            })
+            }))
             .filter(|state| {
                 // 他の駒と重なっていないかチェック
-                (0..PIECES)
-                    .fold(0, |mask, i| mask | state.0[i])
-                    .count_ones()
-                    == 18
+                (0..7).fold(0, |mask, i| mask | state.0[i]).count_ones() == 18
             })
     }
 
     /// 終了状態かどうかを判定する
     pub fn is_goal(&self) -> bool {
-        self.0[9] == 0b_0000_0000_0000_0110_0110
+        self.0[6] == 0b_0000_0000_0000_0110_0110
     }
 
     /// 整形して表示する
     pub fn prerry_print(&self) {
         let mut field: [[u8; 4]; 5] = [[0; 4]; 5];
 
-        for d in 0..PIECES {
+        for d in 0..7 {
             for i in 0..20 {
                 let (r, c) = (i / 4, i % 4);
                 if self.0[d] >> i & 1 == 1 {
@@ -138,13 +169,13 @@ impl Field {
             for j in 0..4 {
                 res += &match field[i][j] {
                     0 => "  ".to_string(),
-                    1..=4 => "▓▓".green().to_string(),
-                    5 => "▓▓".cyan().to_string(),
-                    6 => "▓▓".blue().to_string(),
-                    7 => "▓▓".white().to_string(),
-                    8 => "▓▓".purple().to_string(),
-                    9 => "▓▓".yellow().to_string(),
-                    10 => "▓▓".red().to_string(),
+                    1 => "▓▓".green().to_string(),
+                    2 => "▓▓".cyan().to_string(),
+                    3 => "▓▓".blue().to_string(),
+                    4 => "▓▓".white().to_string(),
+                    5 => "▓▓".purple().to_string(),
+                    6 => "▓▓".yellow().to_string(),
+                    7 => "▓▓".red().to_string(),
                     _ => unreachable!(),
                 };
             }
@@ -215,14 +246,11 @@ mod test {
         assert!(!field.is_goal());
 
         let field = Field([
-            0b_1000_0000_0000_0000_0000,
-            0b_0001_0000_0000_0000_0000,
-            0b_0000_0100_0000_0000_0000,
-            0b_0000_0010_0000_0000_0000,
-            0b_0000_0000_0000_0001_0001,
-            0b_0000_0000_0000_1000_1000,
-            0b_0000_0001_0001_0000_0000,
-            0b_0000_1000_1000_0000_0000,
+            0b_1001_0110_0000_0000_0000,
+            0b_0000_0000_0001_0001_0000,
+            0b_0000_0000_1000_1000_0000,
+            0b_0001_0001_0000_0000_0000,
+            0b_1000_1000_0000_0000_0000,
             0b_0110_0000_0000_0000_0000,
             0b_0000_0000_0000_0110_0110,
         ]);

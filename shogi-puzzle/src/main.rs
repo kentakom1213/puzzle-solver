@@ -1,3 +1,9 @@
-use shogi_puzzle::state::Field;
+use shogi_puzzle::solver::Solver;
 
-fn main() {}
+fn main() {
+    let mut solver = Solver::new();
+
+    solver.solve();
+
+    println!("{:?}", solver.states.len());
+}

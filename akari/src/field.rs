@@ -83,7 +83,7 @@ impl Field {
 }
 
 /// 解
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Solution {
     pub field: Vec<Vec<bool>>,
 }

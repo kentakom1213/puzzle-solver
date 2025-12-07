@@ -1,6 +1,6 @@
 mod field;
-mod solver;
+pub mod solver;
 mod utility;
 
 pub use field::*;
-pub use solver::*;
+pub use solver::Solver;

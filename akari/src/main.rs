@@ -1,11 +1,11 @@
 use std::io::Read;
 
-use akari::{Field, Solver, solvers};
+use akari::{Field, Solver, solver};
 
 fn main() -> Result<(), &'static str> {
     let (h, w, s) = get_input();
 
-    let solver = solvers::Naive;
+    let solver = solver::Naive;
     let field = Field::from_str(h, w, &s)?;
 
     // 求解

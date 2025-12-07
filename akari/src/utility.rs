@@ -6,7 +6,6 @@ const RIGHT: (usize, usize) = (0, 1);
 pub const ADJ: [(usize, usize); 4] = [RIGHT, UP, LEFT, DOWN];
 
 pub trait GridUtility {
-    fn check(&self, h: usize, w: usize) -> bool;
     fn adj(&self, h: usize, w: usize) -> impl Iterator<Item = (usize, usize)>;
     fn while_dir(
         &self,
@@ -17,9 +16,6 @@ pub trait GridUtility {
 }
 
 impl GridUtility for (usize, usize) {
-    fn check(&self, h: usize, w: usize) -> bool {
-        self.0 < h && self.1 < w
-    }
     fn while_dir(
         &self,
         h: usize,

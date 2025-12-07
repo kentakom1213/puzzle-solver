@@ -1,7 +1,5 @@
 //! フィールド
 
-use crate::solver::Solver;
-
 /// フィールドの状態
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -79,6 +77,32 @@ impl Field {
         }
 
         Ok(Field { h, w, field })
+    }
+
+    pub fn display_with_solution(&self, sol: &Solution) -> String {
+        let mut s = String::new();
+        for r in 0..self.h {
+            for c in 0..self.w {
+                let ch = match self.field[r][c] {
+                    State::Nil => '#',
+                    State::Empty => {
+                        if sol.field[r][c] {
+                            'A'
+                        } else {
+                            '.'
+                        }
+                    }
+                    State::Adj0 => '0',
+                    State::Adj1 => '1',
+                    State::Adj2 => '2',
+                    State::Adj3 => '3',
+                    State::Adj4 => '4',
+                };
+                s.push(ch);
+            }
+            s.push('\n');
+        }
+        s
     }
 }
 

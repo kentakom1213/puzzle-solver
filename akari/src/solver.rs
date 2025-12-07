@@ -85,21 +85,69 @@ pub trait Solver {
 
 pub mod solvers {
     use crate::{
-        field::{Field, Solution},
+        field::{Field, Solution, State},
         solver::Solver,
+        utility::{ADJ, GridUtility},
     };
 
     /// バックトラックによる愚直な求解
     pub struct BackTrack;
 
     impl BackTrack {
-        fn dfs(field: &Field, sol: &mut Solution) -> Option<Solution> {
-            // 解が発見された場合
-            if Self::check(field, sol).is_ok() {
-                return Some(sol.clone());
+        fn dfs(
+            field: &Field,
+            pos: usize,
+            sol: &Solution,
+            fill: &Vec<Vec<Option<bool>>>,
+            found: &mut Option<Solution>,
+        ) {
+            let (h, w) = (field.h, field.w);
+
+            if found.is_some() {
+                return;
             }
 
-            None
+            // 最後のセルに来た場合，終了
+            if pos == h * w {
+                if Self::check(field, sol).is_ok() {
+                    *found = Some(sol.clone());
+                }
+                return;
+            }
+
+            let (r, c) = (pos / w, pos % w);
+
+            // あかりが設置できる場合
+            if fill[r][c].is_some_and(|c| !c) {
+                // あかりを設置
+                let mut new_sol = sol.clone();
+                new_sol.field[r][c] = true;
+
+                // あかりが重複していないか判定
+                let mut new_fill = fill.clone();
+                // その場を塗る
+                new_fill[r][c].replace(true);
+                for dir in ADJ {
+                    // 特定方向に塗れるだけ塗る
+                    for (nr, nc) in (r, c).while_dir(h, w, dir) {
+                        // あかりが置かれていたら失敗
+                        if new_sol.field[nr][nc] {
+                            return;
+                        }
+                        // ブロックに当たったら終了
+                        if new_fill[nr][nc].is_none() {
+                            break;
+                        }
+                        new_fill[nr][nc].replace(true);
+                    }
+                }
+
+                // 再帰呼び出し
+                Self::dfs(field, pos + 1, &mut new_sol, &mut new_fill, found);
+            }
+
+            // あかりを設置しない
+            Self::dfs(field, pos + 1, sol, fill, found);
         }
     }
 
@@ -110,8 +158,20 @@ pub mod solvers {
             let mut sol = Solution {
                 field: vec![vec![false; w]; h],
             };
+            let mut fill: Vec<_> = field
+                .field
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|c| (c == &State::Empty).then_some(false))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            let mut found = None;
 
-            Self::dfs(field, &mut sol)
+            Self::dfs(field, 0, &mut sol, &mut fill, &mut found);
+
+            found
         }
     }
 
@@ -179,6 +239,12 @@ pub mod solvers {
 
         #[test]
         fn test_solve() {
+            let field = Field::from_str(1, 3, ".2.").unwrap();
+            let answer = Solution {
+                field: vec![vec![true, false, true]],
+            };
+            assert_eq!(BackTrack.solve(&field), Some(answer));
+
             let field = Field::from_str(3, 3, "2.1 ... ..0").unwrap();
             let answer = Solution {
                 field: vec![

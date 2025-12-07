@@ -37,6 +37,21 @@ impl State {
             _ => Err("cell parse error"),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        matches!(&self, Self::Empty)
+    }
+
+    pub fn is_adj(&self) -> Option<usize> {
+        match &self {
+            Self::Adj0 => Some(0),
+            Self::Adj1 => Some(1),
+            Self::Adj2 => Some(2),
+            Self::Adj3 => Some(3),
+            Self::Adj4 => Some(4),
+            _ => None,
+        }
+    }
 }
 
 /// フィールド
@@ -58,7 +73,7 @@ impl Field {
             .split_ascii_whitespace()
             .map(|row| {
                 row.chars()
-                    .map(|c| State::from_char(c))
+                    .map(State::from_char)
                     .collect::<Result<Vec<State>, &'static str>>()
             })
             .map(|row| {

@@ -1,5 +1,7 @@
+//! 愚直な全探索
+
 use crate::{
-    field::{Field, Solution, State},
+    field::{Field, Solution},
     solver::Solver,
     utility::{ADJ, GridUtility},
 };
@@ -8,11 +10,11 @@ use crate::{
 pub struct Naive;
 
 impl Naive {
-    fn dfs(
+    fn rec(
         field: &Field,
         pos: usize,
-        sol: &Solution,
-        fill: &Vec<Vec<Option<bool>>>,
+        sol: Solution,
+        fill: Vec<Vec<Option<bool>>>,
         found: &mut Option<Solution>,
     ) {
         let (h, w) = (field.h, field.w);
@@ -23,8 +25,8 @@ impl Naive {
 
         // 最後のセルに来た場合，終了
         if pos == h * w {
-            if Self::check(field, sol).is_ok() {
-                *found = Some(sol.clone());
+            if Self::_check(field, &sol).is_ok() {
+                *found = Some(sol);
             }
             return;
         }
@@ -57,40 +59,40 @@ impl Naive {
             }
 
             // 再帰呼び出し
-            Self::dfs(field, pos + 1, &mut new_sol, &mut new_fill, found);
+            Self::rec(field, pos + 1, new_sol, new_fill, found);
         }
 
         // あかりを設置しない
-        Self::dfs(field, pos + 1, sol, fill, found);
+        Self::rec(field, pos + 1, sol, fill, found);
     }
 }
 
 impl Solver for Naive {
     fn solve(&self, field: &Field) -> Option<Solution> {
         let h = field.field.len();
-        let w = field.field.get(0).as_ref().map(|r| r.len()).unwrap_or(0);
-        let mut sol = Solution {
+        let w = field.field.first().as_ref().map(|r| r.len()).unwrap_or(0);
+        let sol = Solution {
             field: vec![vec![false; w]; h],
         };
-        let mut fill: Vec<_> = field
+        let fill: Vec<_> = field
             .field
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|c| (c == &State::Empty).then_some(false))
+                    .map(|c| c.is_empty().then_some(false))
                     .collect::<Vec<_>>()
             })
             .collect();
         let mut found = None;
 
-        Self::dfs(field, 0, &mut sol, &mut fill, &mut found);
+        Self::rec(field, 0, sol, fill, &mut found);
 
         found
     }
 }
 
 #[cfg(test)]
-mod test_backtrack {
+mod test_naive {
     use crate::{
         field::{Field, Solution, State},
         solver::{MISMATCH_AKARI, Naive, OVERLAP_AKARI, Solver, UNLIT_CELL},
@@ -107,7 +109,7 @@ mod test_backtrack {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(Naive::check(&field, &sol), Ok(()));
+        assert_eq!(Naive::_check(&field, &sol), Ok(()));
 
         // あかりの数の不一致
         let field = Field::from_str(3, 3, "2.2 ... ..0").unwrap();
@@ -118,7 +120,7 @@ mod test_backtrack {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(Naive::check(&field, &sol), Err(MISMATCH_AKARI));
+        assert_eq!(Naive::_check(&field, &sol), Err(MISMATCH_AKARI));
 
         // あかりの重複
         let field = Field {
@@ -137,7 +139,7 @@ mod test_backtrack {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(Naive::check(&field, &sol), Err(OVERLAP_AKARI));
+        assert_eq!(Naive::_check(&field, &sol), Err(OVERLAP_AKARI));
 
         // 照らされていないマスが存在
         let field = Field::from_str(3, 3, "2.1 ... ...").unwrap();
@@ -148,7 +150,7 @@ mod test_backtrack {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(Naive::check(&field, &sol), Err(UNLIT_CELL));
+        assert_eq!(Naive::_check(&field, &sol), Err(UNLIT_CELL));
     }
 
     #[test]

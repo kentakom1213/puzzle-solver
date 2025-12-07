@@ -2,21 +2,23 @@
 
 mod naive;
 pub use naive::Naive;
+mod cfs;
+pub use cfs::CFS;
 
 use crate::{
     field::{Field, Solution, State},
     utility::{ADJ, GridUtility},
 };
 
-const MISMATCH_AKARI: &'static str = "The number of lights does not match.";
-const OVERLAP_AKARI: &'static str = "The light is already in place.";
-const UNLIT_CELL: &'static str = "There are cells that are not lighted.";
+const MISMATCH_AKARI: &str = "The number of lights does not match.";
+const OVERLAP_AKARI: &str = "The light is already in place.";
+const UNLIT_CELL: &str = "There are cells that are not lighted.";
 
-/// ソルバのトレイト
+/// ソルバを表すトレイト
 pub trait Solver {
     fn solve(&self, field: &Field) -> Option<Solution>;
     /// 解 sol が条件を満たすか判定
-    fn check(field: &Field, sol: &Solution) -> Result<(), &'static str> {
+    fn _check(field: &Field, sol: &Solution) -> Result<(), &'static str> {
         let (h, w) = (field.h, field.w);
 
         // あかりの配置が条件を満たすか判定

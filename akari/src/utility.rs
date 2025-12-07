@@ -13,6 +13,19 @@ pub trait GridUtility {
         w: usize,
         dir: (usize, usize),
     ) -> impl Iterator<Item = (usize, usize)>;
+    fn dir(&self, h: usize, w: usize, dir: (usize, usize)) -> Option<(usize, usize)>;
+    fn up(&self, h: usize, w: usize) -> Option<(usize, usize)> {
+        self.dir(h, w, UP)
+    }
+    fn down(&self, h: usize, w: usize) -> Option<(usize, usize)> {
+        self.dir(h, w, DOWN)
+    }
+    fn left(&self, h: usize, w: usize) -> Option<(usize, usize)> {
+        self.dir(h, w, LEFT)
+    }
+    fn right(&self, h: usize, w: usize) -> Option<(usize, usize)> {
+        self.dir(h, w, RIGHT)
+    }
 }
 
 impl GridUtility for (usize, usize) {
@@ -33,6 +46,11 @@ impl GridUtility for (usize, usize) {
     fn adj(&self, h: usize, w: usize) -> impl Iterator<Item = (usize, usize)> {
         ADJ.into_iter()
             .map(|(dr, dc)| (self.0.wrapping_add(dr), self.1.wrapping_add(dc)))
+            .filter(move |&(nr, nc)| nr < h && nc < w)
+    }
+    fn dir(&self, h: usize, w: usize, dir: (usize, usize)) -> Option<(usize, usize)> {
+        let (dr, dc) = dir;
+        Some((self.0.wrapping_add(dr), self.1.wrapping_add(dc)))
             .filter(move |&(nr, nc)| nr < h && nc < w)
     }
 }

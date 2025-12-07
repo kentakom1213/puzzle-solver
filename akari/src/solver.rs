@@ -91,9 +91,9 @@ pub mod solvers {
     };
 
     /// バックトラックによる愚直な求解
-    pub struct BackTrack;
+    pub struct Naive;
 
-    impl BackTrack {
+    impl Naive {
         fn dfs(
             field: &Field,
             pos: usize,
@@ -151,7 +151,7 @@ pub mod solvers {
         }
     }
 
-    impl Solver for BackTrack {
+    impl Solver for Naive {
         fn solve(&self, field: &Field) -> Option<Solution> {
             let h = field.field.len();
             let w = field.field.get(0).as_ref().map(|r| r.len()).unwrap_or(0);
@@ -179,7 +179,7 @@ pub mod solvers {
     mod test_backtrack {
         use crate::{
             field::{Field, Solution, State},
-            solver::{MISMATCH_AKARI, OVERLAP_AKARI, Solver, UNLIT_CELL, solvers::BackTrack},
+            solver::{MISMATCH_AKARI, OVERLAP_AKARI, Solver, UNLIT_CELL, solvers::Naive},
         };
 
         #[test]
@@ -193,7 +193,7 @@ pub mod solvers {
                     vec![false, false, false],
                 ],
             };
-            assert_eq!(BackTrack::check(&field, &sol), Ok(()));
+            assert_eq!(Naive::check(&field, &sol), Ok(()));
 
             // あかりの数の不一致
             let field = Field::from_str(3, 3, "2.2 ... ..0").unwrap();
@@ -204,7 +204,7 @@ pub mod solvers {
                     vec![false, false, false],
                 ],
             };
-            assert_eq!(BackTrack::check(&field, &sol), Err(MISMATCH_AKARI));
+            assert_eq!(Naive::check(&field, &sol), Err(MISMATCH_AKARI));
 
             // あかりの重複
             let field = Field {
@@ -223,7 +223,7 @@ pub mod solvers {
                     vec![false, false, false],
                 ],
             };
-            assert_eq!(BackTrack::check(&field, &sol), Err(OVERLAP_AKARI));
+            assert_eq!(Naive::check(&field, &sol), Err(OVERLAP_AKARI));
 
             // 照らされていないマスが存在
             let field = Field::from_str(3, 3, "2.1 ... ...").unwrap();
@@ -234,7 +234,7 @@ pub mod solvers {
                     vec![false, false, false],
                 ],
             };
-            assert_eq!(BackTrack::check(&field, &sol), Err(UNLIT_CELL));
+            assert_eq!(Naive::check(&field, &sol), Err(UNLIT_CELL));
         }
 
         #[test]
@@ -243,7 +243,7 @@ pub mod solvers {
             let answer = Solution {
                 field: vec![vec![true, false, true]],
             };
-            assert_eq!(BackTrack.solve(&field), Some(answer));
+            assert_eq!(Naive.solve(&field), Some(answer));
 
             let field = Field::from_str(3, 3, "2.1 ... ..0").unwrap();
             let answer = Solution {
@@ -253,7 +253,7 @@ pub mod solvers {
                     vec![false, false, false],
                 ],
             };
-            assert_eq!(BackTrack.solve(&field), Some(answer));
+            assert_eq!(Naive.solve(&field), Some(answer));
         }
     }
 }

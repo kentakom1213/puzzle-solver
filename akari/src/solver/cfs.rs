@@ -69,6 +69,11 @@ impl CFS {
             return;
         }
 
+        // 充足不可能なセルがあればスキップ
+        if Self::has_unfeasible_cell(field, &fill) {
+            return;
+        }
+
         // 制約が残っている場合
         if let Some(&(r, c)) = constraints.get(cons_pos) {
             match field.field[r][c] {
@@ -250,6 +255,8 @@ impl CFS {
         }
 
         // あかりを設置しない
+        let mut fill = fill;
+        fill[r][c].disable();
         Self::rec(field, constraints, cons_pos, cell_pos + 1, sol, fill, found);
     }
 
@@ -289,6 +296,36 @@ impl CFS {
         }
 
         Ok((sol, fill))
+    }
+
+    /// 充足不可能なセルが存在するか判定する
+    ///
+    /// TODO: 差分更新の実装
+    ///
+    /// - 時間計算量: O(h*w*(h+w))
+    fn has_unfeasible_cell(field: &Field, fill: &TempFill) -> bool {
+        for r in 0..field.h {
+            for c in 0..field.w {
+                if !matches!(fill[r][c], Cell::Unfillable(false)) {
+                    continue;
+                }
+                // (r,c) を照らせるセルが存在するか
+                let mut is_ok = false;
+                'outer: for dir in ADJ {
+                    // 特定方向に塗れるだけ塗る
+                    for (nr, nc) in (r, c).while_dir(field.h, field.w, dir) {
+                        if fill[nr][nc].can_put_akari() {
+                            is_ok = true;
+                            break 'outer;
+                        }
+                    }
+                }
+                if !is_ok {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 

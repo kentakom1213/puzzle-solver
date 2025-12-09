@@ -131,14 +131,13 @@ impl Field {
                     State::Empty => {
                         if sol.field[r][c] {
                             'A'
-                        } else if matches!(fill[r][c], Cell::Unfillable(false)) {
-                            'x'
-                        } else if matches!(fill[r][c], Cell::Unfillable(true)) {
-                            '*'
-                        } else if matches!(fill[r][c], Cell::Fillable(true)) {
-                            '+'
                         } else {
-                            '.'
+                            match fill[r][c] {
+                                Cell::Fillable => '?',
+                                Cell::Unfillable(false) => 'x',
+                                Cell::Unfillable(true) => '*',
+                                Cell::Nil => unreachable!(),
+                            }
                         }
                     }
                     State::Adj0 => '0',

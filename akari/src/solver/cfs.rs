@@ -11,26 +11,18 @@ use crate::{
 /// セルの一時的な状態
 #[derive(Debug, Clone)]
 pub enum Cell {
-    /// あかりを置くことができるセル（照らされているか）
-    Fillable(bool),
+    /// あかりを置くことができるセル
+    Fillable,
     /// あかりを置くことができないセル（照らされているか）
     Unfillable(bool),
     Nil,
 }
 
 impl Cell {
-    fn as_mut<'a>(&'a mut self) -> Option<&'a mut bool> {
-        match self {
-            Self::Fillable(f) => Some(f),
-            Self::Unfillable(f) => Some(f),
-            Self::Nil => None,
-        }
-    }
-
     /// セルをあかりがおけない状態にする
     fn disable(&mut self) {
         match self {
-            Self::Fillable(f) => *self = Self::Unfillable(*f),
+            Self::Fillable => *self = Self::Unfillable(false),
             _ => {}
         }
     }
@@ -38,7 +30,7 @@ impl Cell {
     /// セルにあかりを置くことができるかどうか
     fn can_put_akari(&self) -> bool {
         match self {
-            Self::Fillable(false) => true,
+            Self::Fillable => true,
             _ => false,
         }
     }
@@ -270,12 +262,10 @@ impl CFS {
         mut fill: TempFill,
     ) -> Result<(Solution, TempFill), &'static str> {
         // その場を塗れるか確認
-        if let Cell::Fillable(fcell) = &mut fill[r][c] {
-            // すでにおいてある場合，そのまま
-            if sol.field[r][c] {
-                return Ok((sol, fill));
-            }
-            *fcell = true;
+        if let Cell::Fillable = fill[r][c] {
+            fill[r][c] = Cell::Unfillable(true);
+        } else if sol.field[r][c] {
+            return Ok((sol, fill));
         } else {
             return Err("Given cell is not fillable.");
         }
@@ -291,10 +281,9 @@ impl CFS {
                     return Err(OVERLAP_AKARI);
                 }
                 // ブロックに当たったら終了
-                if let Some(cell) = fill[nr][nc].as_mut() {
-                    *cell = true;
-                } else {
-                    break;
+                match fill[nr][nc] {
+                    Cell::Nil => break,
+                    _ => fill[nr][nc] = Cell::Unfillable(true),
                 }
             }
         }
@@ -321,7 +310,7 @@ impl Solver for CFS {
                 row.iter()
                     .map(|c| {
                         if c.is_empty() {
-                            Cell::Fillable(false)
+                            Cell::Fillable
                         } else {
                             Cell::Nil
                         }

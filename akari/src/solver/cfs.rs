@@ -8,6 +8,44 @@ use crate::{
     utility::{ADJ, GridUtility},
 };
 
+/// セルの一時的な状態
+#[derive(Debug, Clone)]
+pub enum Cell {
+    /// あかりを置くことができるセル（照らされているか）
+    Fillable(bool),
+    /// あかりを置くことができないセル（照らされているか）
+    Unfillable(bool),
+    Nil,
+}
+
+impl Cell {
+    fn as_mut<'a>(&'a mut self) -> Option<&'a mut bool> {
+        match self {
+            Self::Fillable(f) => Some(f),
+            Self::Unfillable(f) => Some(f),
+            Self::Nil => None,
+        }
+    }
+
+    /// セルをあかりがおけない状態にする
+    fn disable(&mut self) {
+        match self {
+            Self::Fillable(f) => *self = Self::Unfillable(*f),
+            _ => {}
+        }
+    }
+
+    /// セルにあかりを置くことができるかどうか
+    fn can_put_akari(&self) -> bool {
+        match self {
+            Self::Fillable(false) => true,
+            _ => false,
+        }
+    }
+}
+
+pub type TempFill = Vec<Vec<Cell>>;
+
 /// constraint first search
 ///
 /// 影響範囲が狭く強い制約を持つセル（数字セル）が「最も情報量の大きい変数」として優先される変数選択ヒューリスティック．
@@ -20,9 +58,11 @@ impl CFS {
         cons_pos: usize,
         cell_pos: usize,
         sol: Solution,
-        fill: Vec<Vec<Option<bool>>>,
+        fill: TempFill,
         found: &mut Option<Solution>,
     ) {
+        // println!("{}", field.display_with_solution_and_state(&sol, &fill));
+
         let (h, w) = (field.h, field.w);
 
         if found.is_some() {
@@ -41,15 +81,66 @@ impl CFS {
         if let Some(&(r, c)) = constraints.get(cons_pos) {
             match field.field[r][c] {
                 State::Adj0 => {
-                    // あかりを置かない
-                    Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
+                    if let Some((sol, fill)) = Some((sol, fill))
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).right(h, w) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).up(h, w) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).left(h, w) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).down(h, w) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                    {
+                        Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
+                    }
                 }
                 State::Adj1 => {
                     // 1 方向へのあかりの置き方を 4 通り試す
                     for d in ADJ {
-                        if let Some((sol, fill)) = (r, c).dir(h, w, d).and_then(|(ar, ac)| {
-                            Self::put_akari(field, ar, ac, sol.clone(), fill.clone()).ok()
-                        }) {
+                        // 置かない方向
+                        let nd: Vec<_> = ADJ.into_iter().filter(|&x| x != d).collect();
+
+                        if let Some((sol, fill)) = (r, c)
+                            .dir(h, w, d)
+                            .and_then(|(ar, ac)| {
+                                Self::put_akari(field, ar, ac, sol.clone(), fill.clone()).ok()
+                            })
+                            // 置けない場所を設定
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
+                            })
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
+                            })
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[2]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
+                            })
+                        {
                             Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
                         }
                     }
@@ -57,6 +148,9 @@ impl CFS {
                 State::Adj2 => {
                     // 2 方向へのあかりの置き方を 6 通り試す
                     for d in ADJ.iter().combinations(2) {
+                        // 置かない方向
+                        let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
+
                         if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
                             .and_then(|(sol, fill)| {
                                 (r, c).dir(h, w, *d[0]).and_then(|(ar, ac)| {
@@ -68,6 +162,19 @@ impl CFS {
                                     Self::put_akari(field, ar, ac, sol, fill).ok()
                                 })
                             })
+                            // 置けない場所を設定
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
+                            })
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
+                            })
                         {
                             Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
                         }
@@ -76,6 +183,9 @@ impl CFS {
                 State::Adj3 => {
                     // 3 方向へのあかりの置き方を 4 通り試す
                     for d in ADJ.iter().combinations(3) {
+                        // 置かない方向
+                        let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
+
                         if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
                             .and_then(|(sol, fill)| {
                                 (r, c).dir(h, w, *d[0]).and_then(|(ar, ac)| {
@@ -91,6 +201,13 @@ impl CFS {
                                 (r, c).dir(h, w, *d[2]).and_then(|(ar, ac)| {
                                     Self::put_akari(field, ar, ac, sol, fill).ok()
                                 })
+                            })
+                            // 置けない場所を設定
+                            .map(|(sol, mut fill)| {
+                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                    fill[ar][ac].disable();
+                                }
+                                (sol, fill)
                             })
                         {
                             Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
@@ -133,7 +250,7 @@ impl CFS {
         let (r, c) = (cell_pos / w, cell_pos % w);
 
         // あかりが設置できる場合
-        if fill[r][c].is_some_and(|c| !c) {
+        if fill[r][c].can_put_akari() {
             // あかりを設置
             if let Ok((sol, fill)) = Self::put_akari(field, r, c, sol.clone(), fill.clone()) {
                 Self::rec(field, constraints, cons_pos, cell_pos + 1, sol, fill, found);
@@ -150,20 +267,20 @@ impl CFS {
         r: usize,
         c: usize,
         mut sol: Solution,
-        mut fill: Vec<Vec<Option<bool>>>,
-    ) -> Result<(Solution, Vec<Vec<Option<bool>>>), &'static str> {
-        // すでにおいてある場合，そのまま
-        if sol.field[r][c] {
-            return Ok((sol, fill));
-        }
-        // あかりを設置
-        sol.field[r][c] = true;
-        // その場を塗る
-        if let Some(fcell) = fill[r][c].as_mut() {
+        mut fill: TempFill,
+    ) -> Result<(Solution, TempFill), &'static str> {
+        // その場を塗れるか確認
+        if let Cell::Fillable(fcell) = &mut fill[r][c] {
+            // すでにおいてある場合，そのまま
+            if sol.field[r][c] {
+                return Ok((sol, fill));
+            }
             *fcell = true;
         } else {
             return Err("Given cell is not fillable.");
         }
+        // あかりを設置
+        sol.field[r][c] = true;
 
         // 重複確認
         for dir in ADJ {
@@ -202,7 +319,13 @@ impl Solver for CFS {
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|c| c.is_empty().then_some(false))
+                    .map(|c| {
+                        if c.is_empty() {
+                            Cell::Fillable(false)
+                        } else {
+                            Cell::Nil
+                        }
+                    })
                     .collect::<Vec<_>>()
             })
             .collect();

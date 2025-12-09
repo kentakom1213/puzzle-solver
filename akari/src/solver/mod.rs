@@ -3,7 +3,7 @@
 mod naive;
 pub use naive::Naive;
 mod cfs;
-pub use cfs::CFS;
+pub use cfs::{CFS, TempFill, Cell};
 
 use crate::{
     field::{Field, Solution, State},

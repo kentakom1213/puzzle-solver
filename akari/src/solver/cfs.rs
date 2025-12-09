@@ -20,7 +20,7 @@ pub enum Cell {
 
 impl Cell {
     /// セルをあかりがおけない状態にする
-    fn disable(&mut self) {
+    pub fn disable(&mut self) {
         match self {
             Self::Fillable => *self = Self::Unfillable(false),
             _ => {}
@@ -28,7 +28,7 @@ impl Cell {
     }
 
     /// セルにあかりを置くことができるかどうか
-    fn can_put_akari(&self) -> bool {
+    pub fn can_put_akari(&self) -> bool {
         match self {
             Self::Fillable => true,
             _ => false,

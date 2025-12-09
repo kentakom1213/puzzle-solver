@@ -3,51 +3,19 @@
 use itertools::Itertools;
 
 use crate::{
-    Field, Solution, Solver, State,
-    solver::OVERLAP_AKARI,
+    Field, ProgressBar, Solution, Solver, State,
+    solver::{Cell, OVERLAP_AKARI, TempFill},
     utility::{ADJ, GridUtility},
 };
-
-/// セルの一時的な状態
-#[derive(Debug, Clone)]
-pub enum Cell {
-    /// あかりを置くことができるセル
-    Fillable,
-    /// あかりを置くことができないセル（照らされているか）
-    Unfillable(bool),
-    Nil,
-}
-
-impl Cell {
-    /// セルをあかりがおけない状態にする
-    fn disable(&mut self) {
-        match self {
-            Self::Fillable => *self = Self::Unfillable(false),
-            _ => {}
-        }
-    }
-
-    /// セルにあかりを置くことができるかどうか
-    fn can_put_akari(&self) -> bool {
-        match self {
-            Self::Fillable => true,
-            _ => false,
-        }
-    }
-}
-
-pub type TempFill = Vec<Vec<Cell>>;
 
 /// constraint first search
 ///
 /// 影響範囲が狭く強い制約を持つセル（数字セル）が「最も情報量の大きい変数」として優先される変数選択ヒューリスティック．
-pub struct CFS;
+pub struct CFS2;
 
-impl CFS {
+impl CFS2 {
     fn rec(
         field: &Field,
-        constraints: &[(usize, usize)],
-        cons_pos: usize,
         cell_pos: usize,
         sol: Solution,
         fill: TempFill,
@@ -74,14 +42,6 @@ impl CFS {
             return;
         }
 
-        // 制約が残っている場合
-        if constraints.get(cons_pos).is_some() {
-            for (sol, fill) in Self::enum_constraints(field, constraints, cons_pos, sol, fill) {
-                Self::rec(field, constraints, cons_pos + 1, cell_pos, sol, fill, found);
-            }
-            return;
-        }
-
         // 制約が残っていない場合，愚直に埋めていく
         let (r, c) = (cell_pos / w, cell_pos % w);
 
@@ -89,14 +49,14 @@ impl CFS {
         if fill[r][c].can_put_akari() {
             // あかりを設置
             if let Ok((sol, fill)) = Self::put_akari(field, r, c, sol.clone(), fill.clone()) {
-                Self::rec(field, constraints, cons_pos, cell_pos + 1, sol, fill, found);
+                Self::rec(field, cell_pos + 1, sol, fill, found);
             }
         }
 
         // あかりを設置しない
         let mut fill = fill;
         fill[r][c].disable();
-        Self::rec(field, constraints, cons_pos, cell_pos + 1, sol, fill, found);
+        Self::rec(field, cell_pos + 1, sol, fill, found);
     }
 
     /// 制約を充足する配置を列挙する．
@@ -107,163 +67,202 @@ impl CFS {
         sol: Solution,
         fill: TempFill,
     ) -> Vec<(Solution, TempFill)> {
+        if cons_pos == constraints.len() {
+            return vec![(sol, fill)];
+        }
+
+        // 充足不可能なセルがあればスキップ
+        if Self::has_unfeasible_cell(field, &fill) {
+            return vec![];
+        }
+
         let mut results = Vec::new();
-        if let Some(&(r, c)) = constraints.get(cons_pos) {
-            let (h, w) = (field.h, field.w);
-            match field.field[r][c] {
-                State::Adj0 => {
-                    if let Some((sol, fill)) = Some((sol, fill))
-                        .map(|(sol, mut fill)| {
-                            if let Some((ar, ac)) = (r, c).right(h, w) {
-                                fill[ar][ac].disable();
-                            }
-                            (sol, fill)
-                        })
-                        .map(|(sol, mut fill)| {
-                            if let Some((ar, ac)) = (r, c).up(h, w) {
-                                fill[ar][ac].disable();
-                            }
-                            (sol, fill)
-                        })
-                        .map(|(sol, mut fill)| {
-                            if let Some((ar, ac)) = (r, c).left(h, w) {
-                                fill[ar][ac].disable();
-                            }
-                            (sol, fill)
-                        })
-                        .map(|(sol, mut fill)| {
-                            if let Some((ar, ac)) = (r, c).down(h, w) {
-                                fill[ar][ac].disable();
-                            }
-                            (sol, fill)
-                        })
-                    {
-                        results.push((sol, fill));
-                    }
-                }
-                State::Adj1 => {
-                    for d in ADJ {
-                        let nd: Vec<_> = ADJ.into_iter().filter(|&x| x != d).collect();
+        let (r, c) = constraints[cons_pos];
+        let (h, w) = (field.h, field.w);
 
-                        if let Some((sol, fill)) = (r, c)
-                            .dir(h, w, d)
-                            .and_then(|(ar, ac)| {
-                                Self::put_akari(field, ar, ac, sol.clone(), fill.clone()).ok()
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[2]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                        {
-                            results.push((sol, fill));
+        match field.field[r][c] {
+            State::Adj0 => {
+                if let Some((sol, fill)) = Some((sol, fill))
+                    .map(|(sol, mut fill)| {
+                        if let Some((ar, ac)) = (r, c).right(h, w) {
+                            fill[ar][ac].disable();
                         }
-                    }
-                }
-                State::Adj2 => {
-                    for d in ADJ.iter().combinations(2) {
-                        let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
-
-                        if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
-                            .and_then(|(sol, fill)| {
-                                (r, c).dir(h, w, *d[0]).and_then(|(ar, ac)| {
-                                    Self::put_akari(field, ar, ac, sol, fill).ok()
-                                })
-                            })
-                            .and_then(|(sol, fill)| {
-                                (r, c).dir(h, w, *d[1]).and_then(|(ar, ac)| {
-                                    Self::put_akari(field, ar, ac, sol, fill).ok()
-                                })
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                        {
-                            results.push((sol, fill));
+                        (sol, fill)
+                    })
+                    .map(|(sol, mut fill)| {
+                        if let Some((ar, ac)) = (r, c).up(h, w) {
+                            fill[ar][ac].disable();
                         }
-                    }
-                }
-                State::Adj3 => {
-                    for d in ADJ.iter().combinations(3) {
-                        let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
-
-                        if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
-                            .and_then(|(sol, fill)| {
-                                (r, c).dir(h, w, *d[0]).and_then(|(ar, ac)| {
-                                    Self::put_akari(field, ar, ac, sol, fill).ok()
-                                })
-                            })
-                            .and_then(|(sol, fill)| {
-                                (r, c).dir(h, w, *d[1]).and_then(|(ar, ac)| {
-                                    Self::put_akari(field, ar, ac, sol, fill).ok()
-                                })
-                            })
-                            .and_then(|(sol, fill)| {
-                                (r, c).dir(h, w, *d[2]).and_then(|(ar, ac)| {
-                                    Self::put_akari(field, ar, ac, sol, fill).ok()
-                                })
-                            })
-                            .map(|(sol, mut fill)| {
-                                if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
-                                    fill[ar][ac].disable();
-                                }
-                                (sol, fill)
-                            })
-                        {
-                            results.push((sol, fill));
+                        (sol, fill)
+                    })
+                    .map(|(sol, mut fill)| {
+                        if let Some((ar, ac)) = (r, c).left(h, w) {
+                            fill[ar][ac].disable();
                         }
-                    }
+                        (sol, fill)
+                    })
+                    .map(|(sol, mut fill)| {
+                        if let Some((ar, ac)) = (r, c).down(h, w) {
+                            fill[ar][ac].disable();
+                        }
+                        (sol, fill)
+                    })
+                {
+                    results.extend(Self::enum_constraints(
+                        field,
+                        constraints,
+                        cons_pos + 1,
+                        sol,
+                        fill,
+                    ));
                 }
-                State::Adj4 => {
-                    if let Some((sol, fill)) = Some((sol, fill))
-                        .and_then(|(sol, fill)| {
-                            (r, c)
-                                .right(h, w)
-                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
-                        })
-                        .and_then(|(sol, fill)| {
-                            (r, c)
-                                .up(h, w)
-                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
-                        })
-                        .and_then(|(sol, fill)| {
-                            (r, c)
-                                .left(h, w)
-                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
-                        })
-                        .and_then(|(sol, fill)| {
-                            (r, c)
-                                .down(h, w)
-                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
-                        })
-                    {
-                        results.push((sol, fill));
-                    }
-                }
-                _ => unreachable!(),
             }
+            State::Adj1 => {
+                for d in ADJ {
+                    let nd: Vec<_> = ADJ.into_iter().filter(|&x| x != d).collect();
+
+                    if let Some((sol, fill)) = (r, c)
+                        .dir(h, w, d)
+                        .and_then(|(ar, ac)| {
+                            Self::put_akari(field, ar, ac, sol.clone(), fill.clone()).ok()
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[2]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                    {
+                        results.extend(Self::enum_constraints(
+                            field,
+                            constraints,
+                            cons_pos + 1,
+                            sol,
+                            fill,
+                        ));
+                    }
+                }
+            }
+            State::Adj2 => {
+                for d in ADJ.iter().combinations(2) {
+                    let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
+
+                    if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
+                        .and_then(|(sol, fill)| {
+                            (r, c)
+                                .dir(h, w, *d[0])
+                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                        })
+                        .and_then(|(sol, fill)| {
+                            (r, c)
+                                .dir(h, w, *d[1])
+                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[1]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                    {
+                        results.extend(Self::enum_constraints(
+                            field,
+                            constraints,
+                            cons_pos + 1,
+                            sol,
+                            fill,
+                        ));
+                    }
+                }
+            }
+            State::Adj3 => {
+                for d in ADJ.iter().combinations(3) {
+                    let nd: Vec<_> = ADJ.into_iter().filter(|x| !d.contains(&x)).collect();
+
+                    if let Some((sol, fill)) = Some((sol.clone(), fill.clone()))
+                        .and_then(|(sol, fill)| {
+                            (r, c)
+                                .dir(h, w, *d[0])
+                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                        })
+                        .and_then(|(sol, fill)| {
+                            (r, c)
+                                .dir(h, w, *d[1])
+                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                        })
+                        .and_then(|(sol, fill)| {
+                            (r, c)
+                                .dir(h, w, *d[2])
+                                .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                        })
+                        .map(|(sol, mut fill)| {
+                            if let Some((ar, ac)) = (r, c).dir(h, w, nd[0]) {
+                                fill[ar][ac].disable();
+                            }
+                            (sol, fill)
+                        })
+                    {
+                        results.extend(Self::enum_constraints(
+                            field,
+                            constraints,
+                            cons_pos + 1,
+                            sol,
+                            fill,
+                        ));
+                    }
+                }
+            }
+            State::Adj4 => {
+                if let Some((sol, fill)) = Some((sol, fill))
+                    .and_then(|(sol, fill)| {
+                        (r, c)
+                            .right(h, w)
+                            .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                    })
+                    .and_then(|(sol, fill)| {
+                        (r, c)
+                            .up(h, w)
+                            .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                    })
+                    .and_then(|(sol, fill)| {
+                        (r, c)
+                            .left(h, w)
+                            .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                    })
+                    .and_then(|(sol, fill)| {
+                        (r, c)
+                            .down(h, w)
+                            .and_then(|(ar, ac)| Self::put_akari(field, ar, ac, sol, fill).ok())
+                    })
+                {
+                    results.extend(Self::enum_constraints(
+                        field,
+                        constraints,
+                        cons_pos + 1,
+                        sol,
+                        fill,
+                    ));
+                }
+            }
+            _ => unreachable!(),
         }
         results
     }
@@ -337,7 +336,7 @@ impl CFS {
     }
 }
 
-impl Solver for CFS {
+impl Solver for CFS2 {
     fn solve(&self, field: &Field) -> Option<Solution> {
         let h = field.field.len();
         let w = field.field.first().as_ref().map(|r| r.len()).unwrap_or(0);
@@ -364,18 +363,26 @@ impl Solver for CFS {
             })
             .collect();
         let mut found = None;
-
-        Self::rec(field, &constraints, 0, 0, sol, fill, &mut found);
+        let enumerated = Self::enum_constraints(field, &constraints, 0, sol, fill);
+        let mut progress = ProgressBar::new(enumerated.len());
+        for (sol, fill) in enumerated {
+            Self::rec(field, 0, sol, fill, &mut found);
+            progress.tick();
+            if found.is_some() {
+                break;
+            }
+        }
+        progress.finish();
 
         found
     }
 }
 
 #[cfg(test)]
-mod test_cfs {
+mod test_cfs2 {
     use crate::{
         field::{Field, Solution},
-        solver::{Solver, cfs2::CFS},
+        solver::{Solver, cfs2::CFS2},
     };
 
     #[test]
@@ -384,7 +391,7 @@ mod test_cfs {
         let answer = Solution {
             field: vec![vec![true, false, true]],
         };
-        assert_eq!(CFS.solve(&field), Some(answer));
+        assert_eq!(CFS2.solve(&field), Some(answer));
 
         let field = Field::from_str(3, 3, "2.1 ... ..0").unwrap();
         let answer = Solution {
@@ -394,6 +401,6 @@ mod test_cfs {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(CFS.solve(&field), Some(answer));
+        assert_eq!(CFS2.solve(&field), Some(answer));
     }
 }

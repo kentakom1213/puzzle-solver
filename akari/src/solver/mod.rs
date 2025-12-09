@@ -2,8 +2,10 @@
 
 mod naive;
 pub use naive::Naive;
+mod cfs;
+pub use cfs::{CFS, Cell, TempFill};
 mod cfs2;
-pub use cfs2::{CFS, Cell, TempFill};
+pub use cfs2::CFS2;
 
 use crate::{
     field::{Field, Solution, State},

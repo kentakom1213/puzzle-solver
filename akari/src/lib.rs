@@ -1,3 +1,4 @@
+#[allow(clippy::needless_range_loop)]
 mod field;
 mod progress_bar;
 pub mod solver;

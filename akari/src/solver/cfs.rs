@@ -21,18 +21,14 @@ pub enum Cell {
 impl Cell {
     /// セルをあかりがおけない状態にする
     pub fn disable(&mut self) {
-        match self {
-            Self::Fillable => *self = Self::Unfillable(false),
-            _ => {}
+        if let Self::Fillable = self {
+            *self = Self::Unfillable(false)
         }
     }
 
     /// セルにあかりを置くことができるかどうか
     pub fn can_put_akari(&self) -> bool {
-        match self {
-            Self::Fillable => true,
-            _ => false,
-        }
+        matches!(self, Self::Fillable)
     }
 }
 

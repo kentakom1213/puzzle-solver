@@ -1,4 +1,4 @@
-//! 制約を優先的に探索
+//! 制約を優先的に探索（プログレスバー付き）
 
 use itertools::Itertools;
 
@@ -8,12 +8,12 @@ use crate::{
     utility::{ADJ, GridUtility},
 };
 
-/// constraint first search
+/// constraint first search with progress bar
 ///
 /// 影響範囲が狭く強い制約を持つセル（数字セル）が「最も情報量の大きい変数」として優先される変数選択ヒューリスティック．
-pub struct CFS2;
+pub struct CFSwithPB;
 
-impl CFS2 {
+impl CFSwithPB {
     fn rec(
         field: &Field,
         cell_pos: usize,
@@ -336,7 +336,7 @@ impl CFS2 {
     }
 }
 
-impl Solver for CFS2 {
+impl Solver for CFSwithPB {
     fn solve(&self, field: &Field) -> Option<Solution> {
         let h = field.field.len();
         let w = field.field.first().as_ref().map(|r| r.len()).unwrap_or(0);
@@ -382,7 +382,7 @@ impl Solver for CFS2 {
 mod test_cfs2 {
     use crate::{
         field::{Field, Solution},
-        solver::{Solver, cfs2::CFS2},
+        solver::{Solver, cfs2::CFSwithPB},
     };
 
     #[test]
@@ -391,7 +391,7 @@ mod test_cfs2 {
         let answer = Solution {
             field: vec![vec![true, false, true]],
         };
-        assert_eq!(CFS2.solve(&field), Some(answer));
+        assert_eq!(CFSwithPB.solve(&field), Some(answer));
 
         let field = Field::from_str(3, 3, "2.1 ... ..0").unwrap();
         let answer = Solution {
@@ -401,6 +401,6 @@ mod test_cfs2 {
                 vec![false, false, false],
             ],
         };
-        assert_eq!(CFS2.solve(&field), Some(answer));
+        assert_eq!(CFSwithPB.solve(&field), Some(answer));
     }
 }
